@@ -1,0 +1,66 @@
+name: Build Aniyomi Quality APK for rr
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/aniyomi-quality-build.yml'
+      - 'aniyomi-custom/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Checkout build configuration
+        uses: actions/checkout@v4
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+      - name: Get official Aniyomi source
+        run: |
+          git clone https://github.com/aniyomiorg/aniyomi.git aniyomi-src
+          git -C aniyomi-src checkout --detach 97414446b8a95994c72dd33c41c971a89d4d25b8
+      - name: Apply quality and download upgrades
+        working-directory: aniyomi-src
+        run: |
+          python3 ../aniyomi-custom/apply_customizations.py
+          git diff --check
+          chmod +x gradlew
+      - name: Format and check changes
+        working-directory: aniyomi-src
+        run: |
+          ./gradlew spotlessApply --no-daemon
+          ./gradlew spotlessCheck --no-daemon
+      - name: Build signed debug APKs (including arm64-v8a)
+        working-directory: aniyomi-src
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+      - name: Upload installable APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: aniyomi-quality-apk-${{ github.sha }}
+          path: aniyomi-src/app/build/outputs/apk/**/*debug*.apk
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload modified source changes
+        if: always()
+        working-directory: aniyomi-src
+        run: git diff > ../aniyomi-customizations.patch
+      - name: Save source patch
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aniyomi-quality-patch-${{ github.sha }}
+          path: aniyomi-customizations.patch
+          if-no-files-found: warn
