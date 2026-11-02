@@ -26,9 +26,12 @@ jobs:
           java-version: '17'
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools'
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
       - name: Get official Aniyomi source
+        id: clone
         run: |
           git clone https://github.com/aniyomiorg/aniyomi.git aniyomi-src
           git -C aniyomi-src checkout --detach 97414446b8a95994c72dd33c41c971a89d4d25b8
@@ -54,7 +57,7 @@ jobs:
           if-no-files-found: error
           retention-days: 30
       - name: Upload modified source changes
-        if: always()
+        if: ${{ always() && steps.clone.outcome == 'success' }}
         working-directory: aniyomi-src
         run: git diff > ../aniyomi-customizations.patch
       - name: Save source patch
