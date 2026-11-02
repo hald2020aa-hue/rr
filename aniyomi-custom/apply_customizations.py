@@ -118,6 +118,14 @@ replace_once(
                 } ?: throw Exception(context.stringResource(AYMR.strings.video_list_empty_error))''',
 )
 
+# 4. Use the official FlexibleAdapter artifact published on Maven Central.
+#    The older fork revision on JitPack cannot currently be resolved by Gradle.
+replace_once(
+    "gradle/libs.versions.toml",
+    'flexible-adapter-core = "com.github.arkon.FlexibleAdapter:flexible-adapter:c8013533"',
+    'flexible-adapter-core = "eu.davidea:flexible-adapter:5.1.0"',
+)
+
 print("Applied Aniyomi Quality customizations:")
 for path in CHANGES:
     print(" -", path)
