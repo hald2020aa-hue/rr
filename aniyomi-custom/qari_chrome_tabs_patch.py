@@ -94,12 +94,12 @@ def apply_chrome_tabs_patch(root: Path, replace_once):
 
             override fun onReceivedError(
                 view: WebView,
-                request: WebResourceRequest,
-                error: WebResourceError,
+                request: WebResourceRequest?,
+                error: WebResourceError?,
             ) {
                 super.onReceivedError(view, request, error)
-                if (request.isForMainFrame) {
-                    webViewConnectionError = "خطأ اتصال ${error.errorCode}: ${error.description}"
+                if (request?.isForMainFrame == true) {
+                    webViewConnectionError = "خطأ اتصال ${error?.errorCode}: ${error?.description}"
                 }
             }
 
