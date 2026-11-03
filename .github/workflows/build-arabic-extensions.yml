@@ -47,6 +47,18 @@ jobs:
           assert 'loadIndividualExtension("ar", "nxxhentai")' in text
           f.write_text(text)
           PY
+      - name: Auto-format all seven Kotlin modules
+        working-directory: extension-upstream
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon --stacktrace \
+            :src:ar:nxxhentai:spotlessApply \
+            :src:ar:ristohentai:spotlessApply \
+            :src:ar:saudihentai:spotlessApply \
+            :src:ar:hentaixplanet:spotlessApply \
+            :src:ar:hentaitime:spotlessApply \
+            :src:ar:arabshentai:spotlessApply \
+            :src:ar:zebzob:spotlessApply
       - name: Build all seven APKs
         working-directory: extension-upstream
         run: |
