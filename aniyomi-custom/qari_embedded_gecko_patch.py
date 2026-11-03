@@ -71,7 +71,12 @@ def apply_embedded_gecko_patch(root: Path, replace_once) -> None:
     replace_once(
         SOURCE,
         '                        title = state.pageTitle ?: initialTitle,\n',
-        '                        title = if (embeddedGeckoEnabled) geckoTitle ?: initialTitle else state.pageTitle ?: initialTitle,\n',
+        '''                        title = if (embeddedGeckoEnabled) {
+                            geckoTitle ?: initialTitle
+                        } else {
+                            state.pageTitle ?: initialTitle
+                        },
+''',
     )
     replace_once(
         SOURCE,
@@ -87,7 +92,12 @@ def apply_embedded_gecko_patch(root: Path, replace_once) -> None:
 ''',
     )
     replace_once(SOURCE, '                                        enabled = navigator.canGoBack,\n',
-                 '                                        enabled = if (embeddedGeckoEnabled) geckoCanGoBack else navigator.canGoBack,\n')
+                 '''                                        enabled = if (embeddedGeckoEnabled) {
+                                            geckoCanGoBack
+                                        } else {
+                                            navigator.canGoBack
+                                        },
+''')
     replace_once(
         SOURCE,
         '''                                            if (navigator.canGoForward) {
@@ -102,9 +112,21 @@ def apply_embedded_gecko_patch(root: Path, replace_once) -> None:
 ''',
     )
     replace_once(SOURCE, '                                        enabled = navigator.canGoForward,\n',
-                 '                                        enabled = if (embeddedGeckoEnabled) geckoCanGoForward else navigator.canGoForward,\n')
+                 '''                                        enabled = if (embeddedGeckoEnabled) {
+                                            geckoCanGoForward
+                                        } else {
+                                            navigator.canGoForward
+                                        },
+''')
     replace_once(SOURCE, '                                        onClick = { navigator.reload() },\n',
-                 '                                        onClick = { if (embeddedGeckoEnabled) qariGeckoController.reload() else navigator.reload() },\n')
+                 '''                                        onClick = {
+                                            if (embeddedGeckoEnabled) {
+                                                qariGeckoController.reload()
+                                            } else {
+                                                navigator.reload()
+                                            }
+                                        },
+''')
     replace_once(
         SOURCE,
         '''                                    AppBar.OverflowAction(
@@ -112,7 +134,11 @@ def apply_embedded_gecko_patch(root: Path, replace_once) -> None:
                                         onClick = { onOpenInGecko(currentUrl) },
                                     ),''',
         '''                                    AppBar.OverflowAction(
-                                        title = if (embeddedGeckoEnabled) "العودة إلى WebView" else "المصدر داخل التطبيق (GeckoView)",
+                                        title = if (embeddedGeckoEnabled) {
+                                            "العودة إلى WebView"
+                                        } else {
+                                            "المصدر داخل التطبيق (GeckoView)"
+                                        },
                                         onClick = {
                                             embeddedGeckoEnabled = !embeddedGeckoEnabled
                                             geckoSourceLinks = emptyList()
