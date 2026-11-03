@@ -1,1 +1,1 @@
-Aniyomi Arabic experimental extensions. **Not live-tested.** Install third-party APKs at your own risk. Debug APKs are signed with ephemeral CI keys and may need uninstall/reinstall on each build.
+Aniyomi Arabic experimental extensions. Not live-tested. Debug APKs are signed with ephemeral CI keys and may need uninstall/reinstall after rebuilding. Do not confuse build success with working source playback.
