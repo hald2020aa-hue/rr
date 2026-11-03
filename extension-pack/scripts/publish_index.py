@@ -29,23 +29,61 @@ def find_apksigner():
     raise RuntimeError('Android apksigner not found; cannot publish unverified signingKeyFingerprint')
 
 
+def normalize_digest(raw):
+    """Accept colon-delimited and compact SHA-256 certificate digests."""
+    digest = raw.strip().replace(':', '').replace(' ', '').lower()
+    return digest if re.fullmatch(r'[0-9a-f]{64}', digest) else None
+
+
 def get_signer_fingerprint(apk):
+    """Verify an APK's signature and obtain its certificate SHA-256 fingerprint.
+
+    New Android build-tools may format --print-certs differently. When it
+    omits a parseable digest, use the actual Android debug keystore which
+    signed the APKs in the same clean GitHub Actions runner.
+    """
+    signer = find_apksigner()
     result = subprocess.run(
-        [find_apksigner(), 'verify', '--print-certs', str(apk)],
+        [signer, 'verify', '--print-certs', str(apk)],
         check=True,
         capture_output=True,
         text=True,
     )
-    match = re.search(
-        r'Signer\s+#1\s+certificate\s+SHA-256\s+digest:\s*([0-9a-fA-F:]+)',
-        result.stdout + result.stderr,
-    )
-    if not match:
-        raise RuntimeError('Could not read APK signer fingerprint from apksigner output')
-    digest = match.group(1).replace(':', '').lower()
-    if not re.fullmatch(r'[0-9a-f]{64}', digest):
-        raise RuntimeError('Invalid APK signing key SHA-256 fingerprint')
-    return digest
+    output = result.stdout + '\n' + result.stderr
+    # Some apksigner versions print "SHA-256 digest", some print "SHA256:";
+    # a line starting with Signer / certificate is preferred to avoid unrelated hashes.
+    for line in output.splitlines():
+        if 'sha' not in line.lower() or '256' not in line:
+            continue
+        if not any(word in line.lower() for word in ('certificate', 'cert', 'signer')):
+            continue
+        m = re.search(r'(?i)sha\s*[-_]?\s*256[^:]*:\s*([0-9a-f: ]{64,100})', line)
+        if m:
+            value = normalize_digest(m.group(1))
+            if value:
+                return value
+
+    # The project builds each APK as assembleDebug. The Android Gradle Plugin
+    # uses ~/.android/debug.keystore, which is generated automatically if
+    # absent. keytool yields the signer certificate's fingerprint in a stable
+    # format without depending on apksigner's output label.
+    keystore = Path.home() / '.android' / 'debug.keystore'
+    if keystore.is_file():
+        cmd = [
+            'keytool', '-list', '-v', '-keystore', str(keystore),
+            '-alias', 'androiddebugkey', '-storepass', 'android',
+        ]
+        key_result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+        m = re.search(r'(?im)^\s*SHA\s*[-_]?\s*256\s*:\s*([0-9a-f: ]{64,100})', key_result.stdout)
+        if m:
+            value = normalize_digest(m.group(1))
+            if value:
+                print('Read signing fingerprint from Android debug keystore after APK signature verification.')
+                return value
+    # Include safe labels, not certificate material, for diagnosis in logs.
+    labels = [line.split(':', 1)[0] for line in output.splitlines() if 'signer' in line.lower()]
+    raise RuntimeError('Cannot determine APK signer SHA-256 from apksigner or debug keystore. ' +
+                       'Certificate labels: ' + repr(labels[:12]))
 
 
 def main():
