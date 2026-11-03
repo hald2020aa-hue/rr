@@ -145,9 +145,15 @@ fun QariGeckoInlineBrowser(
             "qari-source-bridge@local",
         ).accept(
             { extension ->
-                session.webExtensionController.setMessageDelegate(extension, bridge, "qariSource")
+                if (extension != null) {
+                    session.webExtensionController.setMessageDelegate(extension, bridge, "qariSource")
+                } else {
+                    statusChange.value("جسر قراءة الروابط غير متاح: لم يتم تحميل الإضافة.")
+                }
             },
-            { error -> statusChange.value("جسر قراءة الروابط غير متاح: ${error.message}") },
+            { error ->
+                statusChange.value("جسر قراءة الروابط غير متاح: ${error?.message ?: "خطأ غير معروف"}")
+            },
         )
         onDispose {
             controller.detach(session)
