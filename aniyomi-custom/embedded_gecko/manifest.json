@@ -1,0 +1,28 @@
+{
+  "manifest_version": 2,
+  "name": "Qari Read-only Source Bridge",
+  "version": "1.0.0",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "qari-source-bridge@local"
+    }
+  },
+  "permissions": [
+    "geckoViewAddons",
+    "nativeMessaging",
+    "nativeMessagingFromContent",
+    "https://arabshentai.com/*",
+    "https://www.arabshentai.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://arabshentai.com/*",
+        "https://www.arabshentai.com/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ]
+}

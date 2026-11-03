@@ -179,6 +179,9 @@ apply_chrome_tabs_patch(ROOT, replace_once)
 from qari_gecko_browser_patch import apply_gecko_browser_patch
 apply_gecko_browser_patch(ROOT, replace_once)
 
+from qari_embedded_gecko_patch import apply_embedded_gecko_patch
+apply_embedded_gecko_patch(ROOT, replace_once)
+
 # QARI_SINGLE_ARM64_APK_V2
 # Disable the universal APK output so Gradle creates only app-arm64-v8a-debug.apk.
 replace_once(
