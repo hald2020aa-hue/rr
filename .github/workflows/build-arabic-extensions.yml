@@ -102,7 +102,7 @@ jobs:
           cp "$GITHUB_WORKSPACE"/dist/*.json .
           cp "$GITHUB_WORKSPACE"/dist/README.md .
           cp "$GITHUB_WORKSPACE"/dist/apk/*.apk apk/
-          git add index.min.json index.json README.md apk/
+          git add index.min.json index.json repo.json README.md apk/
           if ! git diff --cached --quiet; then
             git commit -m 'Publish seven experimental Aniyomi extensions'
             git push origin HEAD:extensions
