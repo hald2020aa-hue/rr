@@ -1,0 +1,97 @@
+name: Build Arabic Aniyomi Extensions (experimental)
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'extension-pack/**'
+      - '.github/workflows/build-arabic-extensions.yml'
+permissions:
+  contents: write
+concurrency:
+  group: arabic-extensions-release
+  cancel-in-progress: false
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Checkout rr repository
+        uses: actions/checkout@v4
+      - name: Set up Java 25 for Yuzono Gradle
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - name: Install Android command-line SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools'
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+      - name: Clone pinned Yuzono extensions source
+        run: |
+          git clone https://github.com/yuzono/anime-extensions.git extension-upstream
+          git -C extension-upstream checkout --detach af1c41df075728e2a6ac52664079ccd63503a456
+      - name: Insert seven Arabic source modules
+        run: |
+          cp -r extension-pack/src/ar/* extension-upstream/src/ar/
+          python3 - <<'PY'
+          from pathlib import Path
+          f=Path('extension-upstream/settings.gradle.kts')
+          text=f.read_text()
+          marker='loadAllIndividualExtensions()'
+          assert text.count(marker)==2, 'Unexpected upstream settings.gradle layout'
+          # Replace the one real function CALL, not the function declaration.
+          text=text.replace('\nloadAllIndividualExtensions()\n', '\n'+ '\n'.join('loadIndividualExtension("ar", "'+s+'")' for s in ['nxxhentai','ristohentai','saudihentai','hentaixplanet','hentaitime','arabshentai','zebzob'])+'\n',1)
+          assert 'loadIndividualExtension("ar", "nxxhentai")' in text
+          f.write_text(text)
+          PY
+      - name: Build all seven APKs
+        working-directory: extension-upstream
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon --stacktrace \
+            :src:ar:nxxhentai:assembleDebug \
+            :src:ar:ristohentai:assembleDebug \
+            :src:ar:saudihentai:assembleDebug \
+            :src:ar:hentaixplanet:assembleDebug \
+            :src:ar:hentaitime:assembleDebug \
+            :src:ar:arabshentai:assembleDebug \
+            :src:ar:zebzob:assembleDebug
+      - name: Generate repository index only from actual APKs
+        run: python3 extension-pack/scripts/publish_index.py extension-upstream dist
+      - name: Upload APKs and extension index for testing
+        uses: actions/upload-artifact@v4
+        with:
+          name: arabic-aniyomi-extensions-debug
+          path: dist/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Publish experimental extension index to extensions branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          mkdir -p /tmp/extension-repo
+          if git ls-remote --exit-code --heads origin extensions >/dev/null; then
+            git fetch origin extensions
+            git worktree add /tmp/extension-repo origin/extensions
+            cd /tmp/extension-repo
+            git switch -c extensions-local
+          else
+            git worktree add --detach /tmp/extension-repo HEAD
+            cd /tmp/extension-repo
+            git switch --orphan extensions-local
+            git rm -r -q --ignore-unmatch . || true
+          fi
+          mkdir -p apk
+          cp "$GITHUB_WORKSPACE"/dist/*.json .
+          cp "$GITHUB_WORKSPACE"/dist/README.md .
+          cp "$GITHUB_WORKSPACE"/dist/apk/*.apk apk/
+          git add index.min.json index.json README.md apk/
+          if ! git diff --cached --quiet; then
+            git commit -m 'Publish seven experimental Aniyomi extensions'
+            git push origin HEAD:extensions
+          fi
