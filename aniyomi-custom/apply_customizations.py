@@ -126,6 +126,44 @@ replace_once(
     'flexible-adapter-core = "eu.davidea:flexible-adapter:5.1.0"',
 )
 
+# QARI_WEBVIEW_NAVIGATION_FIX_V1
+# Leave normal HTTP(S) navigation to the embedded Chromium browser. The original
+# handler manually called loadUrl() and then returned false, possibly starting a
+# duplicate navigation during Cloudflare challenge redirects. The site can still
+# refuse embedded browsers; this fix is not a Cloudflare bypass.
+replace_once(
+    "app/src/main/java/eu/kanade/presentation/webview/WebViewScreenContent.kt",
+    '''            override fun shouldOverrideUrlLoading(
+                view: WebView?,
+                request: WebResourceRequest?,
+            ): Boolean {
+                request?.let {
+                    // Don't attempt to open blobs as webpages
+                    if (it.url.toString().startsWith("blob:http")) {
+                        return false
+                    }
+
+                    // Ignore intents urls
+                    if (it.url.toString().startsWith("intent://")) {
+                        return true
+                    }
+
+                    // Continue with request, but with custom headers
+                    view?.loadUrl(it.url.toString(), headers)
+                }
+                return super.shouldOverrideUrlLoading(view, request)
+            }''',
+    '''            override fun shouldOverrideUrlLoading(
+                view: WebView?,
+                request: WebResourceRequest?,
+            ): Boolean {
+                // Preserve browser-managed redirects, cookies, and challenge state.
+                // Avoid initiating an extra loadUrl for every navigation.
+                if (request?.url?.scheme == "intent") return true
+                return false
+            }''',
+)
+
 print("Applied Aniyomi Quality customizations:")
 for path in CHANGES:
     print(" -", path)
