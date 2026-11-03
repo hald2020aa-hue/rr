@@ -29,7 +29,7 @@ def apply_gecko_browser_patch(root: Path, replace_once):
         "app/build.gradle.kts",
         '    implementation("androidx.browser:browser:1.10.0") // Chrome Custom Tabs\n',
         '    implementation("androidx.browser:browser:1.10.0") // Chrome Custom Tabs\n'
-        '    implementation("org.mozilla.geckoview:geckoview:153.0.20260810162159") // GeckoView in-app browser\n',
+        '    implementation("org.mozilla.geckoview:geckoview-arm64-v8a:153.0.20260810162159") // GeckoView in-app browser\n',
     )
 
     manifest = "app/src/main/AndroidManifest.xml"

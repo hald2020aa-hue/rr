@@ -46,7 +46,7 @@ jobs:
         run: |
           ./gradlew spotlessApply --no-daemon
           ./gradlew spotlessCheck --no-daemon
-      - name: Build signed debug APKs (including arm64-v8a)
+      - name: Build only the ARM64 debug APK
         working-directory: aniyomi-src
         run: ./gradlew assembleDebug --no-daemon --stacktrace
       - name: Verify and stage requested APKs only
@@ -57,7 +57,10 @@ jobs:
           root = Path('aniyomi-src/app/build/outputs/apk')
           dst = Path('requested-apks')
           dst.mkdir(exist_ok=True)
-          desired = ('app-arm64-v8a-debug.apk', 'app-universal-debug.apk')
+          desired = ('app-arm64-v8a-debug.apk',)
+          all_apks = sorted(p.name for p in root.rglob('*.apk'))
+          if all_apks != ['app-arm64-v8a-debug.apk']:
+              raise SystemExit(f'Expected only ARM64 APK, found {all_apks}')
           for filename in desired:
               matches = list(root.rglob(filename))
               if len(matches) != 1:
@@ -66,7 +69,7 @@ jobs:
               print(f'STAGED {filename}: {(dst / filename).stat().st_size} bytes')
           assert sorted(p.name for p in dst.iterdir()) == sorted(desired)
           PYCODE
-      - name: Upload only arm64-v8a and universal APKs
+      - name: Upload only arm64-v8a APK
         uses: actions/upload-artifact@v4
         with:
           name: aniyomi-quality-apk-${{ github.sha }}
