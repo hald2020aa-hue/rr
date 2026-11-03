@@ -176,6 +176,9 @@ replace_once(
 from qari_chrome_tabs_patch import apply_chrome_tabs_patch
 apply_chrome_tabs_patch(ROOT, replace_once)
 
+from qari_gecko_browser_patch import apply_gecko_browser_patch
+apply_gecko_browser_patch(ROOT, replace_once)
+
 print("Applied Aniyomi Quality customizations:")
 for path in CHANGES:
     print(" -", path)
