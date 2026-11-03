@@ -49,11 +49,28 @@ jobs:
       - name: Build signed debug APKs (including arm64-v8a)
         working-directory: aniyomi-src
         run: ./gradlew assembleDebug --no-daemon --stacktrace
-      - name: Upload installable APKs
+      - name: Verify and stage requested APKs only
+        run: |
+          python3 - <<'PYCODE'
+          from pathlib import Path
+          from shutil import copy2
+          root = Path('aniyomi-src/app/build/outputs/apk')
+          dst = Path('requested-apks')
+          dst.mkdir(exist_ok=True)
+          desired = ('app-arm64-v8a-debug.apk', 'app-universal-debug.apk')
+          for filename in desired:
+              matches = list(root.rglob(filename))
+              if len(matches) != 1:
+                  raise SystemExit(f'Expected exactly one {filename}; found {len(matches)} at {root}')
+              copy2(matches[0], dst / filename)
+              print(f'STAGED {filename}: {(dst / filename).stat().st_size} bytes')
+          assert sorted(p.name for p in dst.iterdir()) == sorted(desired)
+          PYCODE
+      - name: Upload only arm64-v8a and universal APKs
         uses: actions/upload-artifact@v4
         with:
           name: aniyomi-quality-apk-${{ github.sha }}
-          path: aniyomi-src/app/build/outputs/apk/**/*debug*.apk
+          path: requested-apks/*.apk
           if-no-files-found: error
           retention-days: 30
       - name: Upload modified source changes

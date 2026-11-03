@@ -164,6 +164,15 @@ replace_once(
             }''',
 )
 
+# QARI_ONLY_ARM64_AND_UNIVERSAL_V1
+# Generate only the arm64-v8a APK and the universal APK. All source-code
+# changes, including the existing WebView fix, are compiled into both.
+replace_once(
+    "app/build.gradle.kts",
+    '            include("armeabi-v7a", "arm64-v8a", "x86", "x86_64")',
+    '            include("arm64-v8a")',
+)
+
 print("Applied Aniyomi Quality customizations:")
 for path in CHANGES:
     print(" -", path)
