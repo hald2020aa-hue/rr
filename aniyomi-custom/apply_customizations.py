@@ -173,6 +173,9 @@ replace_once(
     '            include("arm64-v8a")',
 )
 
+from qari_chrome_tabs_patch import apply_chrome_tabs_patch
+apply_chrome_tabs_patch(ROOT, replace_once)
+
 print("Applied Aniyomi Quality customizations:")
 for path in CHANGES:
     print(" -", path)
