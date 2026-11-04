@@ -185,6 +185,9 @@ apply_embedded_gecko_patch(ROOT, replace_once)
 from qari_catalog_routes_patch import apply_catalog_routes_patch
 apply_catalog_routes_patch(ROOT)
 
+from qari_native_anime_patch import apply_native_anime_patch
+apply_native_anime_patch(ROOT)
+
 # QARI_SINGLE_ARM64_APK_V2
 # Disable the universal APK output so Gradle creates only app-arm64-v8a-debug.apk.
 replace_once(
