@@ -196,6 +196,9 @@ replace_once(
     '            isUniversalApk = false',
 )
 
+from qari_external_repo_compat_patch import apply_external_repo_compat_patch
+apply_external_repo_compat_patch(ROOT, replace_once)
+
 print("Applied Aniyomi Quality customizations:")
 for path in CHANGES:
     print(" -", path)
