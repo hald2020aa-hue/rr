@@ -25,7 +25,7 @@ import java.net.URLEncoder
 abstract class ArabsHentai : AnimeHttpLegacySource() {
     override val supportsLatest = true
 
-    private val listingPath = "/"
+    private val listingPath = "/anime/"
     private val itemSelector = "article a[href], .video-item a[href], .thumb a[href], .post a[href]"
     private val isSeriesSite = false
     private val sourceHost = "arabshentai.com"
