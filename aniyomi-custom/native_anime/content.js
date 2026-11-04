@@ -99,7 +99,7 @@
       if (label.length < 2 || label.length > 200) continue;
       if (destination.href === location.href) continue;
       collected.set(destination.href, {url: destination.href, title: label});
-      if (collected.size >= 200) break;
+      if (collected.size >= 1000) break;
     }
     return [...collected.values()];
   }
@@ -110,6 +110,40 @@
     }).catch(() => {});
   }
 
+  // WordPress-style pagination. Follow ONLY links already present in the page;
+  // do not invent undocumented URLs or leave the anime directory.
+  function archivePagination() {
+    const here = new URL(location.href);
+    const parseNumber = (url) => {
+      const match = url.pathname.match(/\/anime\/page\/(\d+)\/?$/i) ||
+        url.pathname.match(/\/page\/(\d+)\/?$/i);
+      const query = Number(url.searchParams.get("paged") || url.searchParams.get("page"));
+      return match ? Number(match[1]) : (query > 0 ? query : 1);
+    };
+    const current = parseNumber(here);
+    let total = current;
+    const candidates = [];
+    // Some site themes render numbered links without standard pagination CSS.
+    const anchors = document.querySelectorAll("a[href]");
+    for (const a of anchors) {
+      const url = absolute(a.href);
+      if (!url || url.protocol !== "https:" || !["arabshentai.com", "www.arabshentai.com"].includes(url.hostname)) continue;
+      const normalizedPath = (() => { try { return decodeURIComponent(url.pathname).toLowerCase(); } catch { return ""; } })();
+      const isArchivePage = /^\/anime\/page\/\d+\/?$/.test(normalizedPath) ||
+        normalizedPath === "/anime/" || normalizedPath === "/anime";
+      if (!isArchivePage) continue;
+      const n = parseNumber(url);
+      const label = clean(a.textContent || a.getAttribute("aria-label") || "");
+      const pageLabel = /^\d+$/.test(label) ? Number(label) : 0;
+      total = Math.max(total, n, pageLabel);
+      if (n > current && n < 1000) candidates.push({n, url: url.href});
+    }
+    const display = document.body?.innerText?.match(/(?:صفحة|page)\s*(\d+)\s*(?:من|of)\s*(\d+)/i);
+    if (display) total = Math.max(total, Number(display[2]));
+    candidates.sort((a,b) => a.n-b.n);
+    return {current, total: Math.min(total, 500), nextUrl: candidates[0]?.url || ""};
+  }
+
   function snapshot() {
     const pageTitle = (document.title || "").toLowerCase();
     if (pageTitle.includes("just a moment") || document.querySelector("#challenge-form, #cf-challenge-running")) return;
@@ -118,10 +152,11 @@
     if (isArchive) {
       const items = findCards();
       if (items.length) {
+        const pagination = archivePagination();
         const stamp = `catalog|${location.href}|${items.map(i => i.url).join("|")}`;
         if (stamp !== previous) {
           previous = stamp;
-          emit("qari-anime-catalog", {items});
+          emit("qari-anime-catalog", {items, ...pagination});
         }
       }
       const links = items.slice(0, 60).map(item => ({
@@ -147,7 +182,7 @@
 
   function schedule() {
     if (pending !== null) clearTimeout(pending);
-    pending = setTimeout(() => { pending = null; snapshot(); }, 750);
+    pending = setTimeout(() => { pending = null; snapshot(); }, 1300);
   }
   schedule();
   const observer = new MutationObserver(schedule);

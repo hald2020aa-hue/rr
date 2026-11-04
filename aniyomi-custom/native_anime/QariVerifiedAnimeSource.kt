@@ -131,7 +131,7 @@ class QariVerifiedAnimeSource(private val appContext: Context) : AnimeHttpSource
 object QariVerifiedAnimeCatalog {
     private const val PREFS = "qari_verified_anime_catalog_v1"
     private const val KEY_ITEMS = "items"
-    private const val MAX_ITEMS = 350
+    private const val MAX_ITEMS = 10000
     private const val PAGE_SIZE = 30
     private const val HOST = "arabshentai.com"
 
@@ -192,7 +192,9 @@ object QariVerifiedAnimeCatalog {
     private fun save(context: Context, map: Map<String, JSONObject>) {
         val array = JSONArray()
         map.values.take(MAX_ITEMS).forEach { array.put(it) }
-        storage(context).edit().putString(KEY_ITEMS, array.toString()).apply()
+        // Commit each imported page before navigating away, so a process kill does
+        // not discard the latest batch or require re-reading previously seen pages.
+        check(storage(context).edit().putString(KEY_ITEMS, array.toString()).commit())
     }
 
     @Synchronized
@@ -216,20 +218,20 @@ object QariVerifiedAnimeCatalog {
             incoming[normalized(url)] = entry
         }
         if (incoming.isEmpty()) return 0
-        val old = load(context)
-        val merged = linkedMapOf<String, JSONObject>()
+        // Preserve archive order (page 1 then 2, etc.) and previously collected
+        // episode metadata. A repeated page refresh only updates title/cover.
+        val merged = load(context)
         incoming.forEach { (key, value) ->
-            val prior = old[key]
+            val prior = merged[key]
             if (prior != null) {
-                if (value.optString("cover").isBlank() && prior.optString("cover").isNotBlank()) {
-                    value.put("cover", prior.optString("cover"))
+                prior.put("title", value.optString("title"))
+                if (value.optString("cover").isNotBlank()) {
+                    prior.put("cover", value.optString("cover"))
                 }
-                if (prior.has("description")) value.put("description", prior.optString("description"))
-                if (prior.has("episodes")) value.put("episodes", prior.optJSONArray("episodes"))
+            } else {
+                merged[key] = value
             }
-            merged[key] = value
         }
-        old.forEach { (key, value) -> if (key !in merged) merged[key] = value }
         save(context, merged)
         return incoming.size
     }
@@ -244,7 +246,7 @@ object QariVerifiedAnimeCatalog {
         if (description.isNotBlank()) entry.put("description", description)
         val episodes = data.optJSONArray("episodes") ?: JSONArray()
         val cleaned = JSONArray()
-        for (i in 0 until minOf(episodes.length(), 200)) {
+        for (i in 0 until minOf(episodes.length(), 1000)) {
             val item = episodes.optJSONObject(i) ?: continue
             val url = item.optString("url")
             val title = item.optString("title").trim().take(200)
@@ -252,6 +254,11 @@ object QariVerifiedAnimeCatalog {
             cleaned.put(JSONObject().put("url", normalized(url)).put("title", title))
         }
         if (cleaned.length() > 0) entry.put("episodes", cleaned)
+        // Even a valid episode-free detail page must not be rescanned forever.
+        // Do not mark a blank/error page as scanned.
+        if (data.optString("title").isNotBlank() || cleaned.length() > 0) {
+            entry.put("qari_details_scanned", true)
+        }
         save(context, old)
         return cleaned.length()
     }
@@ -302,5 +309,83 @@ object QariVerifiedAnimeCatalog {
             })
         }
         return out
+    }
+
+    // Scan checkpoint and anime cards survive app closure. This is ordinary
+    // local catalog indexing, never a Cloudflare-token or cookie export.
+    private const val KEY_SYNC_PHASE = "qari_sync_phase"
+    private const val KEY_NEXT_ARCHIVE = "qari_next_archive"
+    private const val KEY_VISITED = "qari_visited_archives"
+    private const val KEY_TOTAL_PAGES = "qari_total_pages"
+    private const val BASE_ARCHIVE = "https://arabshentai.com/anime/"
+
+    @Synchronized
+    fun resumeTarget(context: Context): Pair<String, String>? {
+        val prefs = storage(context)
+        var phase = prefs.getString(KEY_SYNC_PHASE, "archive") ?: "archive"
+        if (phase == "done") {
+            // A new sync updates listings, without deleting the offline cache.
+            prefs.edit().putString(KEY_SYNC_PHASE, "archive")
+                .putString(KEY_NEXT_ARCHIVE, BASE_ARCHIVE)
+                .putStringSet(KEY_VISITED, emptySet()).commit()
+            phase = "archive"
+        }
+        if (phase == "archive") {
+            val url = prefs.getString(KEY_NEXT_ARCHIVE, BASE_ARCHIVE) ?: BASE_ARCHIVE
+            return "archive" to url.takeIf(::validCatalogPage).orEmpty()
+                .ifBlank { BASE_ARCHIVE }
+        }
+        return nextPendingDetail(context)?.let { "details" to it }
+    }
+
+    @Synchronized
+    fun markArchivePage(context: Context, pageUrl: String, nextPage: String?, total: Int): String? {
+        if (!validCatalogPage(pageUrl)) return null
+        val prefs = storage(context)
+        val visited = prefs.getStringSet(KEY_VISITED, emptySet()).orEmpty().toMutableSet()
+        visited.add(normalized(pageUrl))
+        val usableNext = nextPage?.takeIf(::validCatalogPage)
+            ?.let(::normalized)?.takeUnless { it in visited }
+        val editor = prefs.edit()
+            .putStringSet(KEY_VISITED, visited)
+            .putInt(KEY_TOTAL_PAGES, maxOf(total, prefs.getInt(KEY_TOTAL_PAGES, 0)))
+        if (usableNext != null) {
+            editor.putString(KEY_NEXT_ARCHIVE, usableNext).putString(KEY_SYNC_PHASE, "archive")
+        } else if (total > visited.size) {
+            // We know other pages exist, but their address was not discovered.
+            // Do not pretend the archive is complete or invent URLs.
+            editor.putString(KEY_SYNC_PHASE, "archive")
+                .putString(KEY_NEXT_ARCHIVE, normalized(pageUrl))
+        } else {
+            editor.putString(KEY_SYNC_PHASE, "details").remove(KEY_NEXT_ARCHIVE)
+        }
+        check(editor.commit())
+        return usableNext
+    }
+
+    @Synchronized
+    fun nextPendingDetail(context: Context): String? {
+        return load(context).values.firstOrNull {
+            !it.optBoolean("qari_details_scanned", false)
+        }?.optString("url")?.takeIf(::validAnimeUrl)
+    }
+
+    @Synchronized
+    fun markDetailsFinished(context: Context) {
+        check(storage(context).edit().putString(KEY_SYNC_PHASE, "done").commit())
+    }
+
+    @Synchronized
+    fun progress(context: Context): String {
+        val prefs = storage(context)
+        val values = load(context).values
+        val pages = prefs.getStringSet(KEY_VISITED, emptySet()).orEmpty().size
+        val total = prefs.getInt(KEY_TOTAL_PAGES, 0)
+        val details = values.count { it.optBoolean("qari_details_scanned", false) }
+        val episodes = values.sumOf { it.optJSONArray("episodes")?.length() ?: 0 }
+        val phase = prefs.getString(KEY_SYNC_PHASE, "archive")
+        val label = if (phase == "done") "مكتملة" else if (phase == "details") "الحلقات" else "القوائم"
+        val pageLabel = if (total > 0) "$pages/$total" else "$pages"
+        return "المزامنة: $label — الصفحات $pageLabel — الأنمي ${values.size} — التفاصيل $details — الحلقات $episodes"
     }
 }

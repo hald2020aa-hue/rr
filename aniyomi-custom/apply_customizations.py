@@ -188,6 +188,9 @@ apply_catalog_routes_patch(ROOT)
 from qari_native_anime_patch import apply_native_anime_patch
 apply_native_anime_patch(ROOT)
 
+from qari_auto_sync_patch import apply_auto_sync_patch
+apply_auto_sync_patch(ROOT)
+
 # QARI_SINGLE_ARM64_APK_V2
 # Disable the universal APK output so Gradle creates only app-arm64-v8a-debug.apk.
 replace_once(
