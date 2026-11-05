@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.animeextension.ar.hentaitime
 
+import eu.kanade.tachiyomi.animesource.model.AnimeFilter
 import eu.kanade.tachiyomi.animesource.model.AnimeFilterList
 import eu.kanade.tachiyomi.animesource.model.AnimesPage
 import eu.kanade.tachiyomi.animesource.model.SAnime
@@ -9,6 +10,7 @@ import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.util.asJsoup
 import keiyoushi.annotation.Source
 import keiyoushi.utils.AnimeHttpLegacySource
+import keiyoushi.utils.getPreferencesLazy
 import okhttp3.Request
 import okhttp3.Response
 import org.jsoup.nodes.Document
@@ -24,76 +26,99 @@ import java.net.URLEncoder
 @Source
 abstract class HentaiTime : AnimeHttpLegacySource() {
     override val supportsLatest = true
+    // QARI_LIVE_MENU_FILTERS_V2: navigation is read from real HTML, not guessed.
 
     private val listingPath = "/?filter=latest"
     private val itemSelector = "article a[href], .video-item a[href], .thumb a[href], .video-card a[href], .post a[href]"
     private val isSeriesSite = false
     private val sourceHost = "hentai-time.com"
+
+    private val qariPrefs by getPreferencesLazy()
+    private val qariNav by lazy {
+        QariSiteNavigation(
+            baseUrl, listingPath, qariPrefs,
+            defaultLatest = null,
+            defaultPopular = null,
+        )
+    }
+
+    private class SiteSectionFilter(val links: List<QariNavEntry>) : AnimeFilter.Select<String>(
+        "أقسام الموقع", links.map { it.label }.toTypedArray(),
+    ) {
+        fun selectedUrl(): String? = links.getOrNull(state)?.url?.takeIf { it.isNotBlank() }
+    }
+
+    private class SiteCategoryFilter(val links: List<QariNavEntry>) : AnimeFilter.Select<String>(
+        "التصنيفات والفئات الشائعة", links.map { it.label }.toTypedArray(),
+    ) {
+        fun selectedUrl(): String? = links.getOrNull(state)?.url?.takeIf { it.isNotBlank() }
+    }
+
+    override fun getFilterList(): AnimeFilterList = AnimeFilterList(
+        AnimeFilter.Header("افتح قائمة الأنمي مرة لاكتشاف روابط الموقع وتحديث الفلاتر"),
+        SiteSectionFilter(qariNav.sections()),
+        SiteCategoryFilter(qariNav.categories()),
+    )
+
     private val episodePattern = Regex("(?i)(?:episode|watch|الحلقة|حلقة|الحلقات)")
     private val mediaPattern = Regex("(?i)\\.(?:mp4|m3u8|mpd)(?:[?#]|$)")
     private val qualityPattern = Regex("(?i)(2160|1440|1080|720|480|360|240)\\s*p?")
 
     override fun headersBuilder() = super.headersBuilder().add("Referer", "$baseUrl/")
 
-    override fun popularAnimeRequest(page: Int) = GET(listingUrl(page), headers)
-    override fun latestUpdatesRequest(page: Int) = popularAnimeRequest(page)
+    override fun popularAnimeRequest(page: Int) = GET(listingUrl(page, "popular"), headers)
+    override fun latestUpdatesRequest(page: Int) = GET(listingUrl(page, "latest"), headers)
     override fun searchAnimeRequest(page: Int, query: String, filters: AnimeFilterList): Request {
-        if (query.isBlank()) return popularAnimeRequest(page)
-        val encoded = URLEncoder.encode(query, "UTF-8")
-        val url = "$baseUrl/?s=$encoded" + if (page > 1) "&paged=$page" else ""
-        return GET(url, headers)
+        if (query.isNotBlank()) {
+            val encoded = URLEncoder.encode(query, "UTF-8")
+            return GET(qariNav.pageUrl("$baseUrl/?s=$encoded", page), headers)
+        }
+        val section = filters.filterIsInstance<SiteSectionFilter>().firstOrNull()?.selectedUrl()
+        val category = filters.filterIsInstance<SiteCategoryFilter>().firstOrNull()?.selectedUrl()
+        val route = category ?: section ?: qariNav.route("popular")
+        return GET(qariNav.pageUrl(route, page), headers)
     }
 
-    private fun listingUrl(page: Int): String {
-        val root = "$baseUrl$listingPath"
-        if (page == 1) return root
-        return if (root.contains('?')) "$root&page=$page" else "$root" +
-            (if (root.endsWith('/')) "" else "/") + "page/$page/"
-    }
+    private fun listingUrl(page: Int, kind: String): String =
+        qariNav.pageUrl(qariNav.route(kind), page)
 
     override fun popularAnimeParse(response: Response): AnimesPage {
-        val page = response.asJsoup()
-        val entries = linkedMapOf<String, SAnime>()
-        val candidates = page.select(itemSelector).ifEmpty { page.select("article a[href], .card a[href], a[href]") }
+        val document = response.asJsoup()
+        // Discover site sections, category URLs and pagination on normal public pages.
+        qariNav.discover(document)
+        val candidates = document.select(
+            "article a[href], .video-item a[href], .thumb a[href], .video-card a[href], " +
+                ".post a[href], .item a[href], .card a[href], .poster a[href], " +
+                ".series a[href], .movie a[href], a[href]",
+        )
+        val result = linkedMapOf<String, SAnime>()
         for (link in candidates) {
             val href = link.absUrl("href")
-            if (!isValidEntry(href)) continue
-            val label = link.selectFirst(".title, .name, h2, h3, h4")?.text().orEmpty()
+            if (!qariNav.isEntry(href) || link.closest("nav,footer,aside,.menu,.pagination,.site-header,.main-header") != null) continue
+            val card = link.closest(".video-item,.video-card,.post,.item,.card,.poster,.thumb,.series,.movie,article") ?: link
+            val img = link.selectFirst("img") ?: card.selectFirst("img") ?: continue
+            val cover = listOf("data-src", "data-original", "data-lazy-src", "src")
+                .firstNotNullOfOrNull { attr -> img.absUrl(attr).takeIf(String::isNotBlank) }
+            if (cover.isNullOrBlank()) continue
+            val label = card.selectFirst(".title,.name,h2,h3,h4")?.text().orEmpty()
                 .ifBlank { link.attr("title") }
-                .ifBlank { link.selectFirst("img")?.let { it.attr("alt").ifBlank { it.attr("title") } }.orEmpty() }
+                .ifBlank { img.attr("alt") }
                 .ifBlank { link.text() }
                 .trim()
             if (label.length !in 3..240) continue
-            val img = link.selectFirst("img") ?: link.parent()?.selectFirst("img")
-            val cover = img?.let {
-                listOf("data-src", "data-original", "data-lazy-src", "src")
-                    .firstNotNullOfOrNull { attr -> it.absUrl(attr).takeIf(String::isNotBlank) }
-            }
-            entries.putIfAbsent(href, SAnime.create().apply {
+            result.putIfAbsent(href, SAnime.create().apply {
                 setUrlWithoutDomain(href)
                 title = label
                 thumbnail_url = cover
             })
+            if (result.size >= 100) break
         }
-        val more = page.selectFirst("a[rel=next], .pagination a.next, a.next, .wp-pagenavi a.nextpostslink") != null
-        return AnimesPage(entries.values.toList(), more)
+        val hasNext = qariNav.recordNext(document, response.request.url.toString())
+        return AnimesPage(result.values.toList(), hasNext)
     }
 
     override fun latestUpdatesParse(response: Response) = popularAnimeParse(response)
     override fun searchAnimeParse(response: Response) = popularAnimeParse(response)
-
-    private fun isValidEntry(url: String): Boolean {
-        if (!url.startsWith(baseUrl) || url == baseUrl || url.endsWith("#")) return false
-        val path = url.removePrefix(baseUrl).substringBefore('?').trimEnd('/')
-        if (path.isBlank() || path in setOf("/", "/anime", "/series", "/login", "/register")) return false
-        if (path.contains("/tag/") || path.contains("/category/") || path.contains("/page/")) return false
-        return if (isSeriesSite) {
-            val segment = listingPath.trimEnd('/')
-            path.startsWith("$segment/") && path.length > segment.length + 3
-        } else {
-            path.split('/').filter(String::isNotBlank).size >= 1 && !path.contains("wp-")
-        }
-    }
 
     override fun animeDetailsParse(response: Response): SAnime {
         val document = response.asJsoup()

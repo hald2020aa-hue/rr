@@ -37,12 +37,13 @@ def apply_native_anime_patch(root: Path) -> None:
         manager,
         '''                    sourcesMapFlow.value = mutableMap
                     _isInitialized.value = true''',
-        '''                    // Built-in verified anime catalog, using the GeckoView page cache.
-                    // Registered after extensions: replaces the legacy ArabsHentai
-                    // network scraper when both resolve to the same source ID.
+        '''                    // Use the installed ArabsHentai extension when present.
+                    // Retain GeckoView's native verified catalog as an offline fallback.
                     val verifiedAnime = QariVerifiedAnimeSource(context)
-                    mutableMap[verifiedAnime.id] = verifiedAnime
-                    registerStubSource(StubAnimeSource.from(verifiedAnime))
+                    if (!mutableMap.containsKey(verifiedAnime.id)) {
+                        mutableMap[verifiedAnime.id] = verifiedAnime
+                        registerStubSource(StubAnimeSource.from(verifiedAnime))
+                    }
                     sourcesMapFlow.value = mutableMap
                     _isInitialized.value = true''',
     )
