@@ -1,0 +1,64 @@
+name: Manga D Mihon — ArabsHentai Manga Extension
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, 'feature/**']
+    paths:
+      - 'mihon-arabshentai/**'
+      - '.github/workflows/mihon-arabshentai-manga.yml'
+  pull_request:
+    paths:
+      - 'mihon-arabshentai/**'
+      - '.github/workflows/mihon-arabshentai-manga.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build-mihon-extension:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout user extension fixes
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Checkout Keiyoushi extension build system (pinned)
+        uses: actions/checkout@v4
+        with:
+          repository: keiyoushi/extensions-source
+          ref: 4591fbc9bb571ad03aaea0f7428f7f403350e90e
+          path: keiyoushi
+          persist-credentials: false
+
+      - name: Set up Java 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: Set up Android build cache
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Check overlay contracts
+        run: python3 -m unittest discover -s mihon-arabshentai/tests -v
+
+      - name: Apply manga source extension overlay
+        run: python3 mihon-arabshentai/prepare_upstream.py
+
+      - name: Compile the compatible Mihon extension
+        working-directory: keiyoushi
+        run: |
+          chmod +x gradlew
+          ./gradlew :src:ar:arabshentai:assembleRelease --no-daemon --stacktrace
+
+      - name: Upload the installable Mihon extension APK
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mihon-arabshentai-manga-extension-apk
+          path: keiyoushi/src/ar/arabshentai/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+          retention-days: 14
