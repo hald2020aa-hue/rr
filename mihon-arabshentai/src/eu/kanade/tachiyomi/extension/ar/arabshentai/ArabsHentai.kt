@@ -49,12 +49,11 @@ abstract class ArabsHentai : KeiSource() {
             else -> null // Preserve the upstream manga source ID and category.
         }
 
-    private fun catalogueUrl(page: Int, order: String, state: String? = null): HttpUrl =
-        ("$baseUrl/manga/page/$page/").toHttpUrl().newBuilder().apply {
-            sectionType?.let { addQueryParameter("type", it) }
-            addQueryParameter("orderby", order)
-            state?.takeIf { it.isNotEmpty() }?.let { addQueryParameter("state", it) }
-        }.build()
+    private fun catalogueUrl(page: Int, order: String, state: String? = null): HttpUrl = ("$baseUrl/manga/page/$page/").toHttpUrl().newBuilder().apply {
+        sectionType?.let { addQueryParameter("type", it) }
+        addQueryParameter("orderby", order)
+        state?.takeIf { it.isNotEmpty() }?.let { addQueryParameter("state", it) }
+    }.build()
 
     // Separate catalog routes are preserved for manga, manhwa, doujinshi and comics.
     override suspend fun getPopularManga(page: Int): MangasPage {
@@ -207,10 +206,12 @@ abstract class ArabsHentai : KeiSource() {
         if (list.isNotEmpty()) return list
         // Only a real on-page reader allows a one-shot fallback.
         if (document.selectFirst(".oneshot-reader img, .reading-content img, #readerarea img") != null) {
-            return listOf(SChapter.create().apply {
-                setUrlWithoutDomain(workUrl)
-                name = "عمل من فصل واحد"
-            })
+            return listOf(
+                SChapter.create().apply {
+                    setUrlWithoutDomain(workUrl)
+                    name = "عمل من فصل واحد"
+                },
+            )
         }
         return emptyList()
     }
@@ -237,9 +238,11 @@ abstract class ArabsHentai : KeiSource() {
                 }
             }
         }
-        if (images.isEmpty()) throw IllegalStateException(
-            if (isChallenge(document)) VERIFY_MESSAGE else "لم تظهر صور الفصل في المصدر؛ افتح الفصل عبر المتصفح للتحقق من الصفحة.",
-        )
+        if (images.isEmpty()) {
+            throw IllegalStateException(
+                if (isChallenge(document)) VERIFY_MESSAGE else "لم تظهر صور الفصل في المصدر؛ افتح الفصل عبر المتصفح للتحقق من الصفحة.",
+            )
+        }
         return images.mapIndexed { index, imageUrl -> Page(index, imageUrl = imageUrl) }
     }
 

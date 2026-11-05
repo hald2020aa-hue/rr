@@ -48,6 +48,12 @@ jobs:
       - name: Apply manga source extension overlay
         run: python3 mihon-arabshentai/prepare_upstream.py
 
+      - name: Apply Kotlin formatting required by Keiyoushi
+        working-directory: keiyoushi
+        run: |
+          chmod +x gradlew
+          ./gradlew :src:ar:arabshentai:spotlessApply --no-daemon --stacktrace
+
       - name: Compile the compatible Mihon extension
         working-directory: keiyoushi
         run: |
