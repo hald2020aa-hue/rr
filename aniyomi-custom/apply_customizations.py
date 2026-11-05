@@ -202,6 +202,9 @@ replace_once(
 from qari_external_repo_compat_patch import apply_external_repo_compat_patch
 apply_external_repo_compat_patch(ROOT, replace_once)
 
+from qari_live_anime_patch import patch as apply_live_anime_patch
+apply_live_anime_patch(ROOT)
+
 print("Applied Aniyomi Quality customizations:")
 for path in CHANGES:
     print(" -", path)
