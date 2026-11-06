@@ -5,6 +5,9 @@ import eu.kanade.tachiyomi.network.GET
 import okhttp3.Headers
 import okhttp3.OkHttpClient
 import org.jsoup.Jsoup
+import okhttp3.FormBody
+import okhttp3.Request
+import org.json.JSONObject
 import org.jsoup.nodes.Document
 import java.net.URI
 import java.util.ArrayDeque
@@ -107,6 +110,64 @@ internal object QariPlaybackExtractor {
         }
 
         scan(episode, episodeUrl)
+        // WordPress DooPlay-style options expose server IDs, not video URLs.
+        // Respect the page's public player API instead of treating HTML links as MP4.
+        val dooplayOptions = episode.select(
+            "#playeroptionsul li[data-post][data-nume][data-type], " +
+                "li.dooplay_player_option[data-post][data-nume][data-type], " +
+                "[data-post][data-nume][data-type]"
+        ).distinctBy {
+            "${it.attr("data-post")}:${it.attr("data-type")}:${it.attr("data-nume")}"
+        }.take(6)
+        var ajaxStatus = "not requested"
+        if (dooplayOptions.isNotEmpty()) {
+            val origin = URI(episodeUrl)
+            val endpoint = "https://${origin.host}/wp-admin/admin-ajax.php"
+            val ajaxClient = client.newBuilder().callTimeout(7, TimeUnit.SECONDS).build()
+            for (option in dooplayOptions) {
+                val postId = option.attr("data-post")
+                val type = option.attr("data-type")
+                val nume = option.attr("data-nume")
+                if (!postId.matches(Regex("[0-9]{1,12}")) ||
+                    !type.matches(Regex("[a-zA-Z0-9_-]{1,40}")) ||
+                    !nume.matches(Regex("[a-zA-Z0-9_.-]{1,40}"))) continue
+                val body = FormBody.Builder()
+                    .add("action", "doo_player_ajax")
+                    .add("post", postId)
+                    .add("nume", nume)
+                    .add("type", type)
+                    .build()
+                val request = Request.Builder().url(endpoint)
+                    .headers(headers.newBuilder().set("Referer", episodeUrl).build())
+                    .post(body).build()
+                runCatching {
+                    ajaxClient.newCall(request).execute().use { response ->
+                        ajaxStatus = "HTTP ${response.code}"
+                        if (!response.isSuccessful) return@use
+                        val raw = response.body?.string().orEmpty().take(500_000)
+                        if (raw.isBlank() || raw == "0") return@use
+                        val candidates = mutableListOf<String>()
+                        if (raw.trimStart().startsWith("{")) {
+                            val json = JSONObject(raw)
+                            for (node in listOfNotNull(json, json.optJSONObject("data"))) {
+                                for (key in listOf("embed_url", "url", "src", "html", "embed")) {
+                                    val value = node.optString(key)
+                                    if (value.isNotBlank()) candidates += value
+                                }
+                            }
+                        } else {
+                            candidates += raw
+                        }
+                        for (candidate in candidates) {
+                            val html = Jsoup.parseBodyFragment(candidate, episodeUrl)
+                            scan(html, episodeUrl)
+                            if (candidate.startsWith("https://")) addEmbed(candidate, episodeUrl)
+                        }
+                    }
+                }.onFailure { ajaxStatus = it.javaClass.simpleName }
+                if (direct.isNotEmpty()) break
+            }
+        }
         val boundedClient = client.newBuilder().callTimeout(8, TimeUnit.SECONDS).build()
         var checked = 0
         while (embeds.isNotEmpty() && checked < 6 && direct.size < 12) {
@@ -132,6 +193,11 @@ internal object QariPlaybackExtractor {
                     }
                 }
             }
+        }
+        if (direct.isEmpty() && dooplayOptions.isNotEmpty() && embedCount == 0) {
+            throw IllegalStateException(
+                "لم يجد مشغل AJAX رابط فيديو متاحاً (players=${dooplayOptions.size}; $ajaxStatus)"
+            )
         }
         if (direct.isEmpty() && embedCount > 0) {
             throw IllegalStateException(
