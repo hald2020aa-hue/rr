@@ -23,7 +23,7 @@ def verify(root: Path):
         source = (src / f'{name}.kt').read_text(encoding='utf8')
         build = (folder / 'build.gradle.kts').read_text(encoding='utf8')
         assert f'package eu.kanade.tachiyomi.animeextension.ar.{slug}' in helper
-        assert 'versionCode = 5' in build, f'{slug}: versionCode not 5'
+        assert f'versionCode = {6 if slug == "nxxhentai" else 5}' in build, f'{slug}: versionCode not 5'
         assert 'QariPlaybackExtractor.videos(' in source, f'{slug}: extractor not connected'
         for signature in (
             'private val profiles = mapOf(', '"nxxhentai.net"', '"arabshentai.com"',

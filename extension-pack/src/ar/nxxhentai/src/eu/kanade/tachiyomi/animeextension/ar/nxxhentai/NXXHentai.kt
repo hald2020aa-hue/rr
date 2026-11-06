@@ -159,8 +159,21 @@ abstract class NXXHentai : AnimeHttpLegacySource() {
         })
     }
 
-    override fun videoListParse(response: Response): List<Video> =
-        QariPlaybackExtractor.videos(
-            response.asJsoup(), response.request.url.toString(), client, headers, name,
-        )
+    override fun videoListParse(response: Response): List<Video> {
+        val episode = response.asJsoup()
+        val episodeUrl = response.request.url.toString()
+        return try {
+            QariPlaybackExtractor.videos(episode, episodeUrl, client, headers, name)
+        } catch (staticFailure: Exception) {
+            val observed = runCatching {
+                NxxVipRuntimeResolver().resolve(episode, episodeUrl, client, headers, name)
+            }.getOrDefault(emptyList())
+            if (observed.isNotEmpty()) observed else throw IllegalStateException(
+                "NXX VIPServer: لم يظهر مسار HLS داخل WebView. " +
+                    "قد يرفض الخادم WebView أو يحتاج جلسة Chrome مستقلة. " +
+                    "التفاصيل الأصلية: ${staticFailure.message}",
+                staticFailure,
+            )
+        }
+    }
 }
