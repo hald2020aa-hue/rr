@@ -2,10 +2,10 @@
   {
     "name": "Aniyomi: ArabsHentai",
     "pkg": "eu.kanade.tachiyomi.animeextension.ar.arabshentai",
-    "apk": "aniyomi-ar.arabshentai-v14.4-debug.apk",
+    "apk": "aniyomi-ar.arabshentai-v14.5-debug.apk",
     "lang": "ar",
-    "code": 4,
-    "version": "14.4",
+    "code": 5,
+    "version": "14.5",
     "nsfw": 1,
     "torrent": 0,
     "sources": [
@@ -20,10 +20,10 @@
   {
     "name": "Aniyomi: HentaiTime",
     "pkg": "eu.kanade.tachiyomi.animeextension.ar.hentaitime",
-    "apk": "aniyomi-ar.hentaitime-v14.4-debug.apk",
+    "apk": "aniyomi-ar.hentaitime-v14.5-debug.apk",
     "lang": "ar",
-    "code": 4,
-    "version": "14.4",
+    "code": 5,
+    "version": "14.5",
     "nsfw": 1,
     "torrent": 0,
     "sources": [
@@ -38,10 +38,10 @@
   {
     "name": "Aniyomi: HentaiXPlanet",
     "pkg": "eu.kanade.tachiyomi.animeextension.ar.hentaixplanet",
-    "apk": "aniyomi-ar.hentaixplanet-v14.4-debug.apk",
+    "apk": "aniyomi-ar.hentaixplanet-v14.5-debug.apk",
     "lang": "ar",
-    "code": 4,
-    "version": "14.4",
+    "code": 5,
+    "version": "14.5",
     "nsfw": 1,
     "torrent": 0,
     "sources": [
@@ -56,10 +56,10 @@
   {
     "name": "Aniyomi: NXXHentai",
     "pkg": "eu.kanade.tachiyomi.animeextension.ar.nxxhentai",
-    "apk": "aniyomi-ar.nxxhentai-v14.4-debug.apk",
+    "apk": "aniyomi-ar.nxxhentai-v14.5-debug.apk",
     "lang": "ar",
-    "code": 4,
-    "version": "14.4",
+    "code": 5,
+    "version": "14.5",
     "nsfw": 1,
     "torrent": 0,
     "sources": [
@@ -74,10 +74,10 @@
   {
     "name": "Aniyomi: RistoHentai",
     "pkg": "eu.kanade.tachiyomi.animeextension.ar.ristohentai",
-    "apk": "aniyomi-ar.ristohentai-v14.4-debug.apk",
+    "apk": "aniyomi-ar.ristohentai-v14.5-debug.apk",
     "lang": "ar",
-    "code": 4,
-    "version": "14.4",
+    "code": 5,
+    "version": "14.5",
     "nsfw": 1,
     "torrent": 0,
     "sources": [
@@ -92,10 +92,10 @@
   {
     "name": "Aniyomi: SaudiHentai",
     "pkg": "eu.kanade.tachiyomi.animeextension.ar.saudihentai",
-    "apk": "aniyomi-ar.saudihentai-v14.4-debug.apk",
+    "apk": "aniyomi-ar.saudihentai-v14.5-debug.apk",
     "lang": "ar",
-    "code": 4,
-    "version": "14.4",
+    "code": 5,
+    "version": "14.5",
     "nsfw": 1,
     "torrent": 0,
     "sources": [
@@ -110,10 +110,10 @@
   {
     "name": "Aniyomi: Zebzob",
     "pkg": "eu.kanade.tachiyomi.animeextension.ar.zebzob",
-    "apk": "aniyomi-ar.zebzob-v14.4-debug.apk",
+    "apk": "aniyomi-ar.zebzob-v14.5-debug.apk",
     "lang": "ar",
-    "code": 4,
-    "version": "14.4",
+    "code": 5,
+    "version": "14.5",
     "nsfw": 1,
     "torrent": 0,
     "sources": [
