@@ -23,7 +23,11 @@ for slug,klass in DATA.items():
                  'fun recordNext(document: Document, currentUrl: String)',
                  'fun categories(): List<QariNavEntry>','fun sections(): List<QariNavEntry>'):
         assert mark in nav, f'{slug}: missing {mark}'
-    assert 'versionCode = 2' in build, f'{slug}: extension version unchanged'
+    assert 'versionCode = 3' in build, f'{slug}: extension version unchanged'
+    assert 'QariPlaybackExtractor.videos(' in source, f'{slug}: playback resolver missing'
+    helper=(folder/'QariPlaybackExtractor.kt').read_text(encoding='utf-8')
+    for feature in ('iframe', 'data-setup', 'Referer', 'm3u8', 'mp4'):
+        assert feature in helper, f'{slug}: missing playback {feature}'
     assert source.count('class '+klass+' ') == 1, f'{slug}: source class changed'
     print('PASS',slug,'menus/categories/pagination/version')
 print('OK: all 7 source modules verified')

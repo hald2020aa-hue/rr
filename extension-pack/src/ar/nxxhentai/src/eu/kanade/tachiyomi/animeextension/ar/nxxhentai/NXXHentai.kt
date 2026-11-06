@@ -159,26 +159,8 @@ abstract class NXXHentai : AnimeHttpLegacySource() {
         })
     }
 
-    override fun videoListParse(response: Response): List<Video> {
-        val document = response.asJsoup()
-        val found = linkedSetOf<String>()
-        fun accept(raw: String) {
-            val url = raw.replace("\\/", "/").replace("&amp;", "&").trim()
-            if (url.startsWith("https://") && mediaPattern.containsMatchIn(url)) found += url
-        }
-        document.select("video[src], video source[src], source[src], a[href], [data-src]").forEach { element ->
-            accept(element.absUrl("src"))
-            accept(element.absUrl("href"))
-            accept(element.attr("data-src"))
-        }
-        // Decode directly exposed URLs only; never attempt to defeat access protection.
-        val scriptUrl = Regex("https?://[^\\s\\\"'<>]+?\\.(?:mp4|m3u8|mpd)(?:\\?[^\\s\\\"'<>]*)?", RegexOption.IGNORE_CASE)
-        document.select("script").forEach { script ->
-            scriptUrl.findAll(script.data().replace("\\/", "/")).forEach { accept(it.value) }
-        }
-        return found.map { url ->
-            val quality = qualityPattern.find(url)?.value ?: "Auto"
-            Video(url, "$quality - NXXHentai", url, headers)
-        }.sortedByDescending { qualityPattern.find(it.videoTitle)?.groupValues?.get(1)?.toIntOrNull() ?: 0 }
-    }
+    override fun videoListParse(response: Response): List<Video> =
+        QariPlaybackExtractor.videos(
+            response.asJsoup(), response.request.url.toString(), client, headers, name,
+        )
 }

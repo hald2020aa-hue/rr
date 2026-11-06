@@ -6,7 +6,7 @@ plugins {
 
 yuzono {
     name = "NXXHentai"
-    versionCode = 2
+    versionCode = 3
     contentWarning = ContentWarning.NSFW
     libVersion = "14"
 
