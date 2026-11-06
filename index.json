@@ -56,10 +56,10 @@
   {
     "name": "Aniyomi: NXXHentai",
     "pkg": "eu.kanade.tachiyomi.animeextension.ar.nxxhentai",
-    "apk": "aniyomi-ar.nxxhentai-v14.5-debug.apk",
+    "apk": "aniyomi-ar.nxxhentai-v14.6-debug.apk",
     "lang": "ar",
-    "code": 5,
-    "version": "14.5",
+    "code": 6,
+    "version": "14.6",
     "nsfw": 1,
     "torrent": 0,
     "sources": [
