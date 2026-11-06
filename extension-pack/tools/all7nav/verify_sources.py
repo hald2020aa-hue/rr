@@ -23,7 +23,7 @@ for slug,klass in DATA.items():
                  'fun recordNext(document: Document, currentUrl: String)',
                  'fun categories(): List<QariNavEntry>','fun sections(): List<QariNavEntry>'):
         assert mark in nav, f'{slug}: missing {mark}'
-    assert 'versionCode = 4' in build, f'{slug}: extension version unchanged'
+    assert 'versionCode = 5' in build, f'{slug}: extension version unchanged'
     assert 'doo_player_ajax' in (folder/'QariPlaybackExtractor.kt').read_text(), f'{slug}: DooPlay parser missing'
     assert 'QariPlaybackExtractor.videos(' in source, f'{slug}: playback resolver missing'
     helper=(folder/'QariPlaybackExtractor.kt').read_text(encoding='utf-8')

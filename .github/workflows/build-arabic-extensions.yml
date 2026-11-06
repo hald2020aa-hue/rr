@@ -19,7 +19,9 @@ jobs:
       - name: Checkout rr repository
         uses: actions/checkout@v4
       - name: Verify all seven site navigation extensions
-        run: python3 extension-pack/tools/all7nav/verify_sources.py .
+        run: |
+          python3 extension-pack/tools/all7nav/verify_sources.py .
+          python3 extension-pack/tools/all7nav/verify_v5.py .
       - name: Set up Java 25 for Yuzono Gradle
         uses: actions/setup-java@v4
         with:

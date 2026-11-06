@@ -6,7 +6,7 @@ plugins {
 
 yuzono {
     name = "SaudiHentai"
-    versionCode = 4
+    versionCode = 5
     contentWarning = ContentWarning.NSFW
     libVersion = "14"
 
