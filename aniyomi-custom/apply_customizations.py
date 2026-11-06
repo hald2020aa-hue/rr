@@ -205,6 +205,11 @@ apply_external_repo_compat_patch(ROOT, replace_once)
 from qari_live_anime_patch import patch as apply_live_anime_patch
 apply_live_anime_patch(ROOT)
 
+
+# QARI_NXX_CHROME_PLAYBACK_V7: browser playback for NXX's failing VIPServer.
+from qari_nxx_chrome_playback_patch import apply_nxx_chrome_playback_patch
+apply_nxx_chrome_playback_patch(ROOT, replace_once)
+
 print("Applied Aniyomi Quality customizations:")
 for path in CHANGES:
     print(" -", path)
