@@ -18,10 +18,11 @@ jobs:
     steps:
       - name: Checkout rr repository
         uses: actions/checkout@v4
-      - name: Verify all seven site navigation extensions
+      - name: Verify seven existing navigation extensions and XHamster
         run: |
           python3 extension-pack/tools/all7nav/verify_sources.py .
           python3 extension-pack/tools/all7nav/verify_v5.py .
+          python3 extension-pack/tools/xhamster/verify_xhamster.py .
       - name: Set up Java 25 for Yuzono Gradle
         uses: actions/setup-java@v4
         with:
@@ -37,7 +38,7 @@ jobs:
         run: |
           git clone https://github.com/yuzono/anime-extensions.git extension-upstream
           git -C extension-upstream checkout --detach af1c41df075728e2a6ac52664079ccd63503a456
-      - name: Insert seven Arabic source modules
+      - name: Insert eight Arabic source modules
         run: |
           cp -r extension-pack/src/ar/* extension-upstream/src/ar/
           python3 - <<'PY'
@@ -47,11 +48,11 @@ jobs:
           marker='loadAllIndividualExtensions()'
           assert text.count(marker)==2, 'Unexpected upstream settings.gradle layout'
           # Replace the one real function CALL, not the function declaration.
-          text=text.replace('\nloadAllIndividualExtensions()\n', '\n'+ '\n'.join('loadIndividualExtension("ar", "'+s+'")' for s in ['nxxhentai','ristohentai','saudihentai','hentaixplanet','hentaitime','arabshentai','zebzob'])+'\n',1)
+          text=text.replace('\nloadAllIndividualExtensions()\n', '\n'+ '\n'.join('loadIndividualExtension("ar", "'+s+'")' for s in ['nxxhentai','ristohentai','saudihentai','hentaixplanet','hentaitime','arabshentai','zebzob','xhamster'])+'\n',1)
           assert 'loadIndividualExtension("ar", "nxxhentai")' in text
           f.write_text(text)
           PY
-      - name: Auto-format all seven Kotlin modules
+      - name: Auto-format all eight Kotlin modules
         working-directory: extension-upstream
         run: |
           chmod +x gradlew
@@ -62,8 +63,9 @@ jobs:
             :src:ar:hentaixplanet:spotlessApply \
             :src:ar:hentaitime:spotlessApply \
             :src:ar:arabshentai:spotlessApply \
-            :src:ar:zebzob:spotlessApply
-      - name: Build all seven APKs
+            :src:ar:zebzob:spotlessApply \
+            :src:ar:xhamster:spotlessApply
+      - name: Build all eight APKs
         working-directory: extension-upstream
         run: |
           chmod +x gradlew
@@ -74,7 +76,8 @@ jobs:
             :src:ar:hentaixplanet:assembleDebug \
             :src:ar:hentaitime:assembleDebug \
             :src:ar:arabshentai:assembleDebug \
-            :src:ar:zebzob:assembleDebug
+            :src:ar:zebzob:assembleDebug \
+            :src:ar:xhamster:assembleDebug
       - name: Generate repository index only from actual APKs
         run: python3 extension-pack/scripts/publish_index.py extension-upstream dist
       - name: Upload APKs and extension index for testing
@@ -108,6 +111,6 @@ jobs:
           cp "$GITHUB_WORKSPACE"/dist/apk/*.apk apk/
           git add index.min.json index.json repo.json README.md apk/
           if ! git diff --cached --quiet; then
-            git commit -m 'Publish seven experimental Aniyomi extensions'
+            git commit -m 'Publish eight experimental Aniyomi extensions'
             git push origin HEAD:extensions
           fi

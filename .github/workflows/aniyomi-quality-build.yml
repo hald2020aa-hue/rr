@@ -39,6 +39,7 @@ jobs:
         working-directory: aniyomi-src
         run: |
           python3 ../aniyomi-custom/apply_customizations.py
+          python3 ../aniyomi-custom/fix_video_duration_badge.py
           git diff --check
           chmod +x gradlew
       - name: Format and check changes

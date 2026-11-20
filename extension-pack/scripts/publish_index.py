@@ -126,8 +126,8 @@ def main():
                 for s in meta['sources']
             ],
         })
-    if len(entries) != 7:
-        raise RuntimeError(f'Expected seven compiled extensions; found {len(entries)}. No partial index.')
+    if len(entries) != 8:
+        raise RuntimeError(f'Expected eight compiled extensions; found {len(entries)}. No partial index.')
     fingerprints = {get_signer_fingerprint(apk) for apk in copied}
     if len(fingerprints) != 1:
         raise RuntimeError(f'Extension APKs have multiple signer fingerprints; refusing to publish: {len(fingerprints)}')
