@@ -108,6 +108,24 @@
     ]
   },
   {
+    "name": "Aniyomi: XHamster Arabic",
+    "pkg": "eu.kanade.tachiyomi.animeextension.ar.xhamster",
+    "apk": "aniyomi-ar.xhamster-v14.1-debug.apk",
+    "lang": "ar",
+    "code": 1,
+    "version": "14.1",
+    "nsfw": 1,
+    "torrent": 0,
+    "sources": [
+      {
+        "name": "XHamster Arabic",
+        "lang": "ar",
+        "id": "6423034538291134512",
+        "baseUrl": "https://ara.xhamster.com"
+      }
+    ]
+  },
+  {
     "name": "Aniyomi: Zebzob",
     "pkg": "eu.kanade.tachiyomi.animeextension.ar.zebzob",
     "apk": "aniyomi-ar.zebzob-v14.5-debug.apk",
