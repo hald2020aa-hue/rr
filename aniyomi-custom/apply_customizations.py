@@ -210,6 +210,10 @@ apply_live_anime_patch(ROOT)
 from qari_nxx_chrome_playback_patch import apply_nxx_chrome_playback_patch
 apply_nxx_chrome_playback_patch(ROOT, replace_once)
 
+# QARI_VIDEO_DURATION_BADGES_V1
+from qari_video_duration_patch import apply_video_duration_patch
+apply_video_duration_patch(ROOT, replace_once)
+
 print("Applied Aniyomi Quality customizations:")
 for path in CHANGES:
     print(" -", path)
