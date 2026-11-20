@@ -72,10 +72,12 @@ internal object XHamsterVideoExtractor {
                 else "لم يكشف مشغل XHamster رابط MP4 أو HLS عاماً في بيانات الصفحة."
             )
         }
+        // RR_XHAMSTER_QUALITY_LABEL_V3: normalize quality names for Aniyomi's quality picker.
         return streams.values.sortedByDescending { it.resolution ?: 0 }.map { stream ->
+            val qualityLabel = stream.resolution?.let { "${it}p" } ?: stream.label
             Video(
                 stream.url,
-                "$sourceName • ${stream.label}",
+                "$sourceName • $qualityLabel • ${stream.label}",
                 stream.url,
                 sourceHeaders.newBuilder().set("Referer", pageUrl).build(),
             )

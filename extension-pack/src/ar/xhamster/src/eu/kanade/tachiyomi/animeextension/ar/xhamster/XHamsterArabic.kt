@@ -26,12 +26,16 @@ abstract class XHamsterArabic : AnimeHttpLegacySource() {
     private val prefs by getPreferencesLazy()
 
     private data class NavEntry(val label: String, val url: String)
-    private enum class ListingKind { VIDEOS, CATEGORIES, CHANNELS, PORNSTARS }
+    // RR_XHAMSTER_PAGING_SEARCH_V3
+    private enum class ListingKind { VIDEOS, CATEGORIES, CHANNELS, GROUPS, CREATORS, PORNSTARS }
+    private val dedupeLock = Any()
 
     private val sections = listOf(
         NavEntry("الأحدث", "$baseUrl/newest"),
         NavEntry("الفئات", "$baseUrl/categories"),
         NavEntry("القنوات", "$baseUrl/channels"),
+        NavEntry("المجموعات", "$baseUrl/groups"),
+        NavEntry("الناشرون", "$baseUrl/creators"),
         NavEntry("النجمات", "$baseUrl/pornstars"),
         NavEntry("فيديوهات NAOC", "$baseUrl/creators/videos/naoc"),
         NavEntry("مسابقات NAOC", "$baseUrl/creators/contest/naoc"),
@@ -44,7 +48,7 @@ abstract class XHamsterArabic : AnimeHttpLegacySource() {
     }
 
     override fun getFilterList(): AnimeFilterList = AnimeFilterList(
-        AnimeFilter.Header("اختر قسماً؛ الفئات والقنوات والنجمات تفتح قوائمها الخاصة"),
+        AnimeFilter.Header("بحث الناشر: @username | القناة: channel:name | المجموعة: group:name"),
         SectionFilter(sections),
     )
 
@@ -52,16 +56,50 @@ abstract class XHamsterArabic : AnimeHttpLegacySource() {
         .add("Referer", "$baseUrl/")
         .add("Accept-Language", "ar,en-US;q=0.8,en;q=0.6")
 
-    override fun popularAnimeRequest(page: Int): Request = GET(pageUrl(baseUrl, page), headers)
-    override fun latestUpdatesRequest(page: Int): Request = GET(pageUrl("$baseUrl/newest", page), headers)
+    override fun popularAnimeRequest(page: Int): Request =
+        listingRequest("$baseUrl/newest", page, "popular")
+
+    override fun latestUpdatesRequest(page: Int): Request =
+        listingRequest("$baseUrl/newest", page, "latest")
 
     override fun searchAnimeRequest(page: Int, query: String, filters: AnimeFilterList): Request {
-        val route = if (query.isNotBlank()) {
-            "$baseUrl/search/" + URLEncoder.encode(query, "UTF-8").replace("+", "%20")
-        } else {
-            filters.filterIsInstance<SectionFilter>().firstOrNull()?.selectedUrl() ?: "$baseUrl/newest"
+        val cleaned = query.trim()
+        val author = commandValue(cleaned, "@", "author:", "الناشر:")
+        val channel = commandValue(cleaned, "channel:", "القناة:")
+        val group = commandValue(cleaned, "group:", "المجموعة:")
+        val creator = commandValue(cleaned, "creator:", "المنشئ:")
+        val route = when {
+            !author.isNullOrBlank() -> "$baseUrl/users/${encodeSegment(author)}/videos"
+            !channel.isNullOrBlank() -> "$baseUrl/channels/${encodeSegment(channel)}"
+            !group.isNullOrBlank() -> "$baseUrl/groups/${encodeSegment(group)}"
+            !creator.isNullOrBlank() -> "$baseUrl/creators/videos/${encodeSegment(creator)}"
+            cleaned.isNotBlank() -> "$baseUrl/search/" + URLEncoder.encode(cleaned, "UTF-8").replace("+", "%20")
+            else -> filters.filterIsInstance<SectionFilter>().firstOrNull()?.selectedUrl() ?: "$baseUrl/newest"
         }
-        return GET(pageUrl(route, page), headers)
+        return listingRequest(route, page, "search:$route")
+    }
+
+    private fun commandValue(query: String, vararg prefixes: String): String? {
+        val prefix = prefixes.firstOrNull { query.startsWith(it, ignoreCase = true) } ?: return null
+        return query.substring(prefix.length).trim().trimStart('@').takeIf { it.isNotBlank() }
+    }
+
+    private fun encodeSegment(value: String): String = Uri.encode(value.trim())
+
+    private fun listingRequest(start: String, page: Int, feed: String): Request {
+        val token = feedToken(feed)
+        if (page <= 1) clearFeedState(token)
+        return GET(pageUrl(start, page, token), headers).newBuilder()
+            .header("X-RR-Feed-Key", token)
+            .build()
+    }
+
+    private fun feedToken(feed: String): String = feed.lowercase().hashCode().toUInt().toString(16)
+
+    private fun clearFeedState(token: String) {
+        val editor = prefs.edit().remove("xhamster_seen_$token")
+        prefs.all.keys.filter { it.startsWith("xhamster_next_${token}_") }.forEach { key -> editor.remove(key) }
+        editor.apply()
     }
 
     override fun popularAnimeParse(response: Response): AnimesPage = parseListing(response)
@@ -75,6 +113,8 @@ abstract class XHamsterArabic : AnimeHttpLegacySource() {
         val kind = when (path) {
             "/categories" -> ListingKind.CATEGORIES
             "/channels" -> ListingKind.CHANNELS
+            "/groups" -> ListingKind.GROUPS
+            "/creators" -> ListingKind.CREATORS
             "/pornstars" -> ListingKind.PORNSTARS
             else -> ListingKind.VIDEOS
         }
@@ -91,7 +131,8 @@ abstract class XHamsterArabic : AnimeHttpLegacySource() {
         } else {
             parseHtmlCards(document, kind)
         }
-        val hasNext = recordNext(document, currentUrl)
+        val feed = response.request.header("X-RR-Feed-Key") ?: feedToken("path:$path")
+        val hasNext = recordNext(document, currentUrl, feed)
         if (items.isEmpty()) {
             val challenge = document.text().contains("Just a moment", true) ||
                 document.html().contains("cf-challenge", true)
@@ -100,7 +141,28 @@ abstract class XHamsterArabic : AnimeHttpLegacySource() {
                 else "لم أجد عناصر في الصفحة؛ ربما تغير تصميم الموقع أو لم تُحمّل قائمته."
             )
         }
-        return AnimesPage(items.distinctBy { it.url }, hasNext)
+        return AnimesPage(dedupeAcrossFeed(items, feed), hasNext)
+    }
+
+    private fun dedupeAcrossFeed(items: List<SAnime>, feed: String): List<SAnime> = synchronized(dedupeLock) {
+        val key = "xhamster_seen_$feed"
+        val seen = (prefs.getStringSet(key, emptySet<String>()) ?: emptySet()).toMutableSet()
+        val fresh = items.filter { seen.add(canonicalItemKey(it.url)) }
+        val bounded = if (seen.size > 6000) seen.toList().takeLast(6000).toSet() else seen
+        prefs.edit().putStringSet(key, bounded).apply()
+        fresh
+    }
+
+    private fun canonicalItemKey(raw: String): String {
+        val absolute = safeUrl(raw) ?: raw
+        val uri = Uri.parse(absolute)
+        val path = uri.path.orEmpty().trimEnd('/').lowercase()
+        val segments = uri.pathSegments
+        if (segments.size >= 2 && (segments.first().equals("videos", true) || segments.first().equals("movies", true))) {
+            val id = segments.last().substringAfterLast('-')
+            if (id.length >= 6) return "video:${id.lowercase()}"
+        }
+        return "url:$path"
     }
 
     override fun animeDetailsParse(response: Response): SAnime {
@@ -124,12 +186,29 @@ abstract class XHamsterArabic : AnimeHttpLegacySource() {
                     if (value.isNotBlank()) add(value)
                 }
             }
-        }.orEmpty()
+        }.orEmpty().toMutableList()
+
+        val authorObject = model?.optJSONObject("author")
+        val authorPage = authorObject?.optString("pageURL").orEmpty().ifBlank { authorObject?.optString("url").orEmpty() }
+        val authorName = authorObject?.optString("username").orEmpty()
+            .ifBlank { authorObject?.optString("name").orEmpty() }
+            .ifBlank { model?.optString("authorName").orEmpty() }
+        val authorHandle = profileSlug(authorPage) ?: authorName
+        document.select("a[href]").forEach { anchor ->
+            val url = safeUrl(anchor.absUrl("href")) ?: return@forEach
+            val segments = Uri.parse(url).pathSegments
+            val slug = segments.lastOrNull()?.takeIf { it.isNotBlank() } ?: return@forEach
+            when (segments.firstOrNull()?.lowercase()) {
+                "channels" -> genres.add("channel:$slug")
+                "groups" -> genres.add("group:$slug")
+            }
+        }
         return SAnime.create().apply {
             this.title = title
             this.description = description
+            author = authorHandle.takeIf { it.isNotBlank() }?.let { if (it.startsWith("@")) it else "@$it" }
             thumbnail_url = thumbnail.ifBlank { null }
-            genre = genres.joinToString(", ").ifBlank { null }
+            genre = genres.distinct().joinToString(", ").ifBlank { null }
             status = SAnime.UNKNOWN
         }
     }
@@ -171,6 +250,15 @@ abstract class XHamsterArabic : AnimeHttpLegacySource() {
         response.asJsoup(), response.request.url.toString(), headers, name,
     )
 
+    private fun profileSlug(raw: String): String? {
+        if (raw.isBlank()) return null
+        val url = safeUrl(raw) ?: return raw.trim().trim('/').substringAfterLast('/').takeIf { it.isNotBlank() }
+        val segments = Uri.parse(url).pathSegments
+        val usersIndex = segments.indexOfFirst { it.equals("users", true) }
+        if (usersIndex >= 0) return segments.getOrNull(usersIndex + 1)?.takeIf { it.isNotBlank() }
+        return segments.lastOrNull()?.takeIf { it.isNotBlank() }
+    }
+
     private data class VideoThumb(val url: String, val title: String, val thumbnail: String?)
 
     private fun parseVideoThumbs(document: Document): List<VideoThumb> {
@@ -183,7 +271,7 @@ abstract class XHamsterArabic : AnimeHttpLegacySource() {
             val title = item.optString("title").trim()
             if (title.isBlank()) continue
             val image = absoluteAsset(item.optString("imageURL").ifBlank { item.optString("thumbURL") })
-            result[url] = VideoThumb(url, title, image)
+            result.putIfAbsent(canonicalItemKey(url), VideoThumb(url, title, image))
         }
         return result.values.toList()
     }
@@ -252,6 +340,9 @@ abstract class XHamsterArabic : AnimeHttpLegacySource() {
                 ListingKind.VIDEOS -> isVideoPath(path)
                 ListingKind.CATEGORIES -> path.startsWith("/categories/") && path != "/categories/"
                 ListingKind.CHANNELS -> path.startsWith("/channels/") && path != "/channels/"
+                ListingKind.GROUPS -> path.startsWith("/groups/") && path != "/groups/"
+                ListingKind.CREATORS -> path.startsWith("/creators/videos/") ||
+                    path.startsWith("/creators/contest/")
                 ListingKind.PORNSTARS -> path.startsWith("/pornstars/") ||
                     (path.startsWith("/creators/") && !path.startsWith("/creators/videos/") &&
                         !path.startsWith("/creators/contest/"))
@@ -273,7 +364,7 @@ abstract class XHamsterArabic : AnimeHttpLegacySource() {
                 .ifBlank { anchor.text() }
                 .trim()
             if (title.length !in 2..240) continue
-            result.putIfAbsent(url, SAnime.create().apply {
+            result.putIfAbsent(canonicalItemKey(url), SAnime.create().apply {
                 setUrlWithoutDomain(url)
                 this.title = title
                 thumbnail_url = thumbnail
@@ -314,17 +405,23 @@ abstract class XHamsterArabic : AnimeHttpLegacySource() {
         return uri.buildUpon().fragment(null).build().toString()
     }
 
-    private fun pageKey(url: String): String = "xhamster_next_" + url.hashCode().toUInt().toString(16)
+    private fun pageKey(feed: String, url: String): String {
+        val uri = Uri.parse(url)
+        val path = uri.path.orEmpty().trimEnd('/').ifBlank { "/" }.lowercase()
+        val query = uri.queryParameterNames.sorted().joinToString("&") { name -> "$name=${uri.getQueryParameter(name).orEmpty()}" }
+        val canonical = if (query.isBlank()) path else "$path?$query"
+        return "xhamster_next_${feed}_${canonical.hashCode().toUInt().toString(16)}"
+    }
 
-    private fun pageUrl(start: String, page: Int): String {
+    private fun pageUrl(start: String, page: Int, feed: String): String {
         var current = safeUrl(start) ?: "$baseUrl/newest"
         for (index in 2..page.coerceIn(1, 300)) {
-            current = prefs.getString(pageKey(current), null)?.let(::safeUrl) ?: return current
+            current = prefs.getString(pageKey(feed, current), null)?.let(::safeUrl) ?: return current
         }
         return current
     }
 
-    private fun recordNext(document: Document, currentUrl: String): Boolean {
+    private fun recordNext(document: Document, currentUrl: String, feed: String): Boolean {
         val choices = document.select(
             "a.page-button-link[href],a[rel=next][href],.pagination a[href]," +
                 ".pagination-next a[href],a.next[href],li.next a[href]",
@@ -344,7 +441,8 @@ abstract class XHamsterArabic : AnimeHttpLegacySource() {
             if (!isNext && (number == null || number <= currentPage)) return@mapNotNull null
             (number ?: currentPage + 1) to url
         }.sortedBy { it.first }.firstOrNull { it.first > currentPage }?.second ?: return false
-        prefs.edit().putString(pageKey(currentUrl), next).apply()
+        if (next == currentUrl) return false
+        prefs.edit().putString(pageKey(feed, currentUrl), next).apply()
         return true
     }
 }

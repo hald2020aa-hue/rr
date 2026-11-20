@@ -214,6 +214,14 @@ apply_nxx_chrome_playback_patch(ROOT, replace_once)
 from qari_video_duration_patch import apply_video_duration_patch
 apply_video_duration_patch(ROOT, replace_once)
 
+# RR_XHAMSTER_CREATOR_PROFILE_SEARCH_V3
+# @username is a source-local profile query, not a global search.
+replace_once(
+    "app/src/main/java/eu/kanade/presentation/entries/anime/components/AnimeInfoHeader.kt",
+    'onClick = { if (!author.isNullOrBlank()) doSearch(author, true) },',
+    'onClick = { if (!author.isNullOrBlank()) doSearch(author, !author.startsWith("@")) },',
+)
+
 print("Applied Aniyomi Quality customizations:")
 for path in CHANGES:
     print(" -", path)

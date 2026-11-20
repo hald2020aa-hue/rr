@@ -25,6 +25,11 @@ extension_workflow = (root / ".github/workflows/build-arabic-extensions.yml").re
 assert ":src:ar:xhamster:assembleDebug" in extension_workflow
 index_script = (root / "extension-pack/scripts/publish_index.py").read_text(encoding="utf-8")
 assert "len(entries) != 8" in index_script
+# RR_XHAMSTER_PAGING_SEARCH_V3
+for marker in ("GROUPS", "CREATORS", "dedupeAcrossFeed", "canonicalItemKey", "X-RR-Feed-Key", "channel:", "group:", "profileSlug"):
+    assert marker in source, f"Missing paging/search feature: {marker}"
+customizer = (root / "aniyomi-custom/apply_customizations.py").read_text(encoding="utf-8")
+assert "RR_XHAMSTER_CREATOR_PROFILE_SEARCH_V3" in customizer
 print("PASS: six routes, section filter, video/category/channel/star parsers")
 print("PASS: XHamster initials parsing, codec-nested HLS, public MP4/HLS and Referer handling")
 print("PASS: app badge repair is wired into the build workflow; extension APK and 8-entry index are wired")
